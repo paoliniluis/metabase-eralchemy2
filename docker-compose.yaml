@@ -1,0 +1,99 @@
+services:
+  metabase:
+    image: metabase/metabase-enterprise:v1.50.0-RC2
+    container_name: metabase
+    networks:
+      - metanet1-eralchemy
+    hostname: metabase
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2048M
+        reservations:
+          cpus: '2'
+          memory: 2048M
+    environment:
+      MB_DB_TYPE: postgres
+      # MB_DB_CONNECTION_URI: "postgres://postgres:5432/metabase?user=metabase&password=mysecretpassword&sslmode=prefer"
+      MB_DB_CONNECTION_URI: "mysql://metabase:mysecretpassword@mysql:3306/metabase?allowPublicKeyRetrieval=true"
+    healthcheck:
+      test: curl --fail -X GET -I http://localhost:3000/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      # postgres:
+      mysql:
+        condition: service_healthy
+  # postgres:
+  #   image: postgres:16.2-alpine
+  #   container_name: postgres
+  #   networks:
+  #     - metanet1-eralchemy
+  #   hostname: postgres
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2'
+  #         memory: 1024M
+  #       reservations:
+  #         cpus: '2'
+  #         memory: 1024M
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U metabase -d metabase"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 3
+  #   environment:
+  #     POSTGRES_USER: metabase
+  #     POSTGRES_DB: metabase
+  #     POSTGRES_PASSWORD: mysecretpassword
+  mysql:
+    image: mysql:8.0.35
+    container_name: mysql
+    networks:
+      - metanet1-eralchemy
+    hostname: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mysecretpassword
+      MYSQL_USER: metabase
+      MYSQL_PASSWORD: mysecretpassword
+      MYSQL_DATABASE: metabase
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+        reservations:
+          cpus: '2'
+          memory: 1024M
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+  eralchemy:
+    build: .
+    container_name: eralchemy
+    volumes:
+      - $PWD/diagrams:/app/eralchemy2
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+        reservations:
+          cpus: '2'
+          memory: 1024M
+    networks:
+      - metanet1-eralchemy
+    hostname: eralchemy
+    depends_on:
+      metabase:
+        condition: service_healthy
+    # command: eralchemy2 -i "postgresql+psycopg2://metabase:mysecretpassword@postgres:5432/metabase" -o /app/eralchemy2/v50.pdf
+    command: eralchemy2 -i "mysql+mysqlconnector://metabase:mysecretpassword@mysql:3306/metabase" -o /app/eralchemy2/v50.pdf
+
+networks:
+  metanet1-eralchemy:
+    driver: bridge
